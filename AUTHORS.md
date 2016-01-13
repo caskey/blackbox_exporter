@@ -3,9 +3,10 @@ Julius Volz in 2012.
 
 Maintainers of this repository:
 
-* Brian Brazil <brian.brazil@robustperception.io>
+* Caskey L. Dickson <caskey@gmail.com>
 
-The following individuals have contributed code to this repository
+The following individuals were listed in the original AUTHORS at the
+time this version was forked.
 (listed in alphabetical order):
 
 * Brian Brazil <brian.brazil@robustperception.io>

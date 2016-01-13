@@ -1,22 +1,19 @@
 # Blackbox exporter
 
-The blackbox exporter allows blackbox probing of endpoints over
+Another blackbox exporter allows blackbox probing of endpoints over
 HTTP, HTTPS, TCP and ICMP.
+
+This is a fork of the prometheus/blackbox_prober by caskey.
 
 ## Building and running
 
 ### Local Build
 
-    make
+    go build
     ./blackbox_exporter <flags>
 
 Visiting [http://localhost:9115/probe?target=google.com&module=http_2xx](http://localhost:9115/probe?target=google.com&module=http_2xx)
 will return metrics for a HTTP probe against google.com.
-
-### Building with Docker
-
-    docker build -t blackbox_exporter .
-    docker run -d -p 9115:9115 --name blackbox_exporter -v `pwd`:/config blackbox_exporter -config.file=/config/blackbox.yml
 
 ## Configuration
 
@@ -36,6 +33,7 @@ modules:
       - "Could not connect to database"
       fail_if_not_matches_regexp:
       - "Download the latest version here"
+      path: /
   tcp_connect:
     prober: tcp
     timeout: 5s
