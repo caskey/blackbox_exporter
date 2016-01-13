@@ -13,8 +13,41 @@ import (
 	"github.com/prometheus/log"
 )
 
-var addr = flag.String("web.listen-address", ":9115", "The address to listen on for HTTP requests.")
-var configFile = flag.String("config.file", "blackbox.yml", "Blackbox exporter configuration file.")
+var (
+	addr = flag.String("web.listen-address", ":9115", "The address to listen on for HTTP requests.")
+	configFile = flag.String("config.file", "blackbox.yml", "Blackbox exporter configuration file.")
+)
+
+var (
+	probeLatencies = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name: "probe_latency_summary_millis",
+			Help: "Latency of probes by type",
+		},
+		[]string{"module", "success"},
+	)
+	probeHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "probe_latency_histogram_millis",
+			Help: "Latency of probes by type",
+			Buckets: prometheus.ExponentialBuckets(1, 2, 20),
+		},
+		[]string{"module", "success"},
+	)
+	probeCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "probe_count",
+			Help: "Latency of probes by type",
+		},
+		[]string{"module", "success"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(probeLatencies)
+	prometheus.MustRegister(probeHistogram)
+	prometheus.MustRegister(probeCounter)
+}
 
 type Config struct {
 	Modules map[string]Module `yaml:"modules"`
@@ -81,12 +114,19 @@ func probeHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 	}
 	start := time.Now()
 	success := prober(target, w, module)
-	fmt.Fprintf(w, "probe_duration_seconds %f\n", float64(time.Now().Sub(start))/1e9)
+	latency := float64(time.Now().Sub(start).Nanoseconds())/1e6
+	fmt.Fprintf(w, "probe_duration_seconds %f\n", latency/1e3)
+	var successString string
 	if success {
+		successString = "true"
 		fmt.Fprintf(w, "probe_success %d\n", 1)
 	} else {
+		successString = "false"
 		fmt.Fprintf(w, "probe_success %d\n", 0)
 	}
+	probeLatencies.WithLabelValues(moduleName, successString).Observe(latency)
+	probeHistogram.WithLabelValues(moduleName, successString).Observe(latency)
+	probeCounter.WithLabelValues(moduleName, successString).Inc()
 }
 
 func main() {
@@ -126,3 +166,4 @@ func main() {
 		log.Fatalf("Error starting HTTP server: %s", err)
 	}
 }
+
