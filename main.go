@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	addr = flag.String("web.listen-address", ":9115", "The address to listen on for HTTP requests.")
+	addr       = flag.String("web.listen-address", ":9115", "The address to listen on for HTTP requests.")
 	configFile = flag.String("config.file", "blackbox.yml", "Blackbox exporter configuration file.")
 )
 
@@ -28,8 +28,8 @@ var (
 	)
 	probeHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "probe_latency_histogram_millis",
-			Help: "Latency of probes by type",
+			Name:    "probe_latency_histogram_millis",
+			Help:    "Latency of probes by type",
 			Buckets: prometheus.ExponentialBuckets(1, 2, 20),
 		},
 		[]string{"module", "success"},
@@ -114,7 +114,7 @@ func probeHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 	}
 	start := time.Now()
 	success := prober(target, w, module)
-	latency := float64(time.Now().Sub(start).Nanoseconds())/1e6
+	latency := float64(time.Now().Sub(start).Nanoseconds()) / 1e6
 	fmt.Fprintf(w, "probe_duration_seconds %f\n", latency/1e3)
 	var successString string
 	if success {
@@ -166,4 +166,3 @@ func main() {
 		log.Fatalf("Error starting HTTP server: %s", err)
 	}
 }
-

@@ -79,7 +79,7 @@ func probeHTTP(target string, w http.ResponseWriter, module Module) (success boo
 
 	log.Infof("probeHTTP to %s%s", target, config.Path)
 
-	request, err := http.NewRequest(config.Method, target + config.Path, nil)
+	request, err := http.NewRequest(config.Method, target+config.Path, nil)
 	if err != nil {
 		log.Errorf("Error creating request for target %s: %s", target, err)
 		return
