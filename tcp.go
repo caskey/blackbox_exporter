@@ -4,14 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"net/http"
 	"regexp"
 	"time"
 
 	"github.com/prometheus/log"
 )
 
-func probeTCP(target string, w http.ResponseWriter, module Module, metrics chan<- Metric) bool {
+func probeTCP(target string, module Module, metrics chan<- Metric) bool {
 	deadline := time.Now().Add(module.Timeout)
 	conn, err := net.DialTimeout("tcp", target, module.Timeout)
 	if err != nil {

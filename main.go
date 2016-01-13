@@ -90,7 +90,7 @@ type Metric struct {
 	FloatValue float64
 }
 
-var Probers = map[string]func(string, http.ResponseWriter, Module, chan<- Metric) bool{
+var Probers = map[string]func(string, Module, chan<- Metric) bool{
 	"http": probeHTTP,
 	"tcp":  probeTCP,
 	"icmp": probeICMP,
@@ -122,7 +122,7 @@ func probeHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 	metrics := make(chan Metric, 30)
 
 	start := time.Now()
-	success := prober(target, w, module, metrics)
+	success := prober(target, module, metrics)
 	latency := float64(time.Now().Sub(start).Nanoseconds()) / 1e6
 
 	metrics <- Metric{"probe_duration_seconds", latency / 1e3}

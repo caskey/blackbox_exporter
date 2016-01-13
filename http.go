@@ -46,7 +46,7 @@ func getEarliestCertExpiry(state *tls.ConnectionState) time.Time {
 	return earliest
 }
 
-func probeHTTP(target string, w http.ResponseWriter, module Module, metrics chan<- Metric) (success bool) {
+func probeHTTP(target string, module Module, metrics chan<- Metric) (success bool) {
 	var redirects int
 	config := module.HTTP
 

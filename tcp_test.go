@@ -38,7 +38,7 @@ func TestTCPConnection(t *testing.T) {
 	}()
 	metrics := NewMetricSink()
 	defer close(metrics)
-	if !probeTCP(ln.Addr().String(), nil, Module{Timeout: time.Second}, metrics) {
+	if !probeTCP(ln.Addr().String(), Module{Timeout: time.Second}, metrics) {
 		t.Fatalf("TCP module failed, expected success.")
 	}
 	<-ch
@@ -48,7 +48,7 @@ func TestTCPConnectionFails(t *testing.T) {
 	// Invalid port number.
 	metrics := NewMetricSink()
 	defer close(metrics)
-	if probeTCP(":0", nil, Module{Timeout: time.Second}, metrics) {
+	if probeTCP(":0", Module{Timeout: time.Second}, metrics) {
 		t.Fatalf("TCP module suceeded, expected failure.")
 	}
 }
@@ -87,7 +87,7 @@ func TestTCPConnectionQueryResponseIRC(t *testing.T) {
 	}()
 	metrics := NewMetricSink()
 	defer close(metrics)
-	if !probeTCP(ln.Addr().String(), nil, module, metrics) {
+	if !probeTCP(ln.Addr().String(), module, metrics) {
 		t.Fatalf("TCP module failed, expected success.")
 	}
 	<-ch
@@ -107,7 +107,7 @@ func TestTCPConnectionQueryResponseIRC(t *testing.T) {
 	}()
 	metrics = NewMetricSink()
 	defer close(metrics)
-	if probeTCP(ln.Addr().String(), nil, module, metrics) {
+	if probeTCP(ln.Addr().String(), module, metrics) {
 		t.Fatalf("TCP module succeeded, expected failure.")
 	}
 	<-ch
@@ -147,7 +147,7 @@ func TestTCPConnectionQueryResponseMatching(t *testing.T) {
 	}()
 	metrics := NewMetricSink()
 	defer close(metrics)
-	if !probeTCP(ln.Addr().String(), nil, module, metrics) {
+	if !probeTCP(ln.Addr().String(), module, metrics) {
 		t.Fatalf("TCP module failed, expected success.")
 	}
 	if got, want := <-ch, "OpenSSH_6.9p1"; got != want {

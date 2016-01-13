@@ -5,7 +5,6 @@ import (
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -25,7 +24,7 @@ func getICMPSequence() uint16 {
 	return icmpSequence
 }
 
-func probeICMP(target string, w http.ResponseWriter, module Module, metrics chan<- Metric) (success bool) {
+func probeICMP(target string, module Module, metrics chan<- Metric) (success bool) {
 	deadline := time.Now().Add(module.Timeout)
 	socket, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
