@@ -85,7 +85,12 @@ type TCPProbe struct {
 type ICMPProbe struct {
 }
 
-var Probers = map[string]func(string, http.ResponseWriter, Module) bool{
+type Metric struct {
+	Name       string
+	FloatValue float64
+}
+
+var Probers = map[string]func(string, http.ResponseWriter, Module, chan<- Metric) bool{
 	"http": probeHTTP,
 	"tcp":  probeTCP,
 	"icmp": probeICMP,
@@ -112,18 +117,31 @@ func probeHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 		http.Error(w, fmt.Sprintf("Unkown prober %s", module.Prober), 400)
 		return
 	}
+
+	// Warning: magic number here.  This must be big enough to collect all the metrics.
+	metrics := make(chan Metric, 30)
+
 	start := time.Now()
-	success := prober(target, w, module)
+	success := prober(target, w, module, metrics)
 	latency := float64(time.Now().Sub(start).Nanoseconds()) / 1e6
-	fmt.Fprintf(w, "probe_duration_seconds %f\n", latency/1e3)
+
+	metrics <- Metric{"probe_duration_seconds", latency / 1e3}
 	var successString string
 	if success {
+		metrics <- Metric{"probe_success", 1}
 		successString = "true"
-		fmt.Fprintf(w, "probe_success %d\n", 1)
 	} else {
+		metrics <- Metric{"probe_success", 1}
 		successString = "false"
-		fmt.Fprintf(w, "probe_success %d\n", 0)
 	}
+
+	// Close the metric buffer and dump it.
+	close(metrics)
+
+	for metric := range metrics {
+		fmt.Fprintf(w, "%s %f\n", metric.Name, metric.FloatValue)
+	}
+
 	probeLatencies.WithLabelValues(moduleName, successString).Observe(latency)
 	probeHistogram.WithLabelValues(moduleName, successString).Observe(latency)
 	probeCounter.WithLabelValues(moduleName, successString).Inc()

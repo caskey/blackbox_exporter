@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -47,9 +46,8 @@ func getEarliestCertExpiry(state *tls.ConnectionState) time.Time {
 	return earliest
 }
 
-func probeHTTP(target string, w http.ResponseWriter, module Module) (success bool) {
-	var isSSL, redirects int
-	var actualContentLength = -1
+func probeHTTP(target string, w http.ResponseWriter, module Module, metrics chan<- Metric) (success bool) {
+	var redirects int
 	config := module.HTTP
 
 	client := &http.Client{
@@ -92,6 +90,10 @@ func probeHTTP(target string, w http.ResponseWriter, module Module) (success boo
 	} else {
 		defer resp.Body.Close()
 
+		metrics <- Metric{"probe_http_status_code", float64(resp.StatusCode)}
+		metrics <- Metric{"probe_http_content_length", float64(resp.ContentLength)}
+		metrics <- Metric{"probe_http_redirects", float64(redirects)}
+
 		var statusCodeOkay = false
 		var regexMatchOkay = true
 		var tlsOkay = true
@@ -114,7 +116,8 @@ func probeHTTP(target string, w http.ResponseWriter, module Module) (success boo
 		if statusCodeOkay {
 			body, err := ioutil.ReadAll(resp.Body)
 			if err == nil {
-				actualContentLength = len(body)
+
+				metrics <- Metric{"probe_http_actual_content_length", float64(len(body))}
 				if len(config.FailIfMatchesRegexp) > 0 || len(config.FailIfNotMatchesRegexp) > 0 {
 					regexMatchOkay = matchRegularExpressions(body, config)
 				}
@@ -126,22 +129,20 @@ func probeHTTP(target string, w http.ResponseWriter, module Module) (success boo
 		// Finally check TLS
 
 		if resp.TLS != nil {
-			isSSL = 1
-			fmt.Fprintf(w, "probe_ssl_earliest_cert_expiry %f\n",
-				float64(getEarliestCertExpiry(resp.TLS).UnixNano())/1e9)
+			metrics <- Metric{"probe_http_ssl", 1.0}
+			metrics <- Metric{"probe_ssl_earliest_cert_expiry",
+				float64(getEarliestCertExpiry(resp.TLS).UnixNano()) / 1e9}
 			if config.FailIfSSL {
 				tlsOkay = false
 			}
-		} else if config.FailIfNotSSL {
-			tlsOkay = false
+		} else {
+			metrics <- Metric{"probe_http_ssl", 0.0}
+			if config.FailIfNotSSL {
+				tlsOkay = false
+			}
 		}
 
 		success = statusCodeOkay && regexMatchOkay && tlsOkay
-		fmt.Fprintf(w, "probe_http_status_code %d\n", resp.StatusCode)
-		fmt.Fprintf(w, "probe_http_content_length %d\n", resp.ContentLength)
-		fmt.Fprintf(w, "probe_http_actual_content_length %d\n", actualContentLength)
-		fmt.Fprintf(w, "probe_http_redirects %d\n", redirects)
-		fmt.Fprintf(w, "probe_http_ssl %d\n", isSSL)
 	}
 	return
 }

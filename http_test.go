@@ -45,8 +45,10 @@ func TestHTTPStatusCodes(t *testing.T) {
 		}))
 		defer ts.Close()
 		recorder := httptest.NewRecorder()
+		metrics := NewMetricSink()
+		defer close(metrics)
 		result := probeHTTP(ts.URL, recorder,
-			Module{HTTP: HTTPProbe{ValidStatusCodes: test.ValidStatusCodes}})
+			Module{HTTP: HTTPProbe{ValidStatusCodes: test.ValidStatusCodes}}, metrics)
 		body := recorder.Body.String()
 		if result != test.ShouldSucceed {
 			t.Fatalf("Test %d had unexpected result: %s", i, body)
@@ -64,7 +66,9 @@ func TestConfiguredPathSentInRequest(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
-	result := probeHTTP(ts.URL, recorder, Module{HTTP: HTTPProbe{Path: pathToSend}})
+	metrics := NewMetricSink()
+	defer close(metrics)
+	result := probeHTTP(ts.URL, recorder, Module{HTTP: HTTPProbe{Path: pathToSend}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Fetch test failed unexpectedly, got %s", body)
@@ -85,13 +89,26 @@ func TestRedirectFollowed(t *testing.T) {
 
 	// Follow redirect, should succeed with 200.
 	recorder := httptest.NewRecorder()
-	result := probeHTTP(ts.URL, recorder, Module{HTTP: HTTPProbe{}})
+	metrics := make(chan Metric)
+	defer close(metrics)
+	go func() {
+		var redirectMetricFound = false
+		for m := range metrics {
+			if m.Name == "probe_http_redirects" {
+				if m.FloatValue != 1.0 {
+					t.Fatalf("Unexpected number of redirects found: %f", m.FloatValue)
+				}
+			}
+		}
+		if !redirectMetricFound {
+			t.Fatalf("Redirect count metric not found.")
+		}
+	}()
+
+	result := probeHTTP(ts.URL, recorder, Module{HTTP: HTTPProbe{}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Redirect test failed unexpectedly, got %s", body)
-	}
-	if !strings.Contains(body, "probe_http_redirects 1\n") {
-		t.Fatalf("Expected one redirect, got %s", body)
 	}
 }
 
@@ -103,8 +120,10 @@ func TestRedirectNotFollowed(t *testing.T) {
 
 	// Follow redirect, should succeed with 200.
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{NoFollowRedirects: true, ValidStatusCodes: []int{302}}})
+		Module{HTTP: HTTPProbe{NoFollowRedirects: true, ValidStatusCodes: []int{302}}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Redirect test failed unexpectedly, got %s", body)
@@ -120,8 +139,10 @@ func TestPost(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{Method: "POST"}})
+		Module{HTTP: HTTPProbe{Method: "POST"}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Post test failed unexpectedly, got %s", body)
@@ -133,14 +154,20 @@ func TestFailIfNotSSL(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := make(chan Metric)
+	defer close(metrics)
+	go func() {
+		for m := range metrics {
+			if m.Name == "probe_http_ssl" && m.FloatValue > 0 {
+				t.Fatalf("Did not expect ssl metric set on non-ssl connection")
+			}
+		}
+	}()
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfNotSSL: true}})
+		Module{HTTP: HTTPProbe{FailIfNotSSL: true}}, metrics)
 	body := recorder.Body.String()
 	if result {
 		t.Fatalf("Fail if not SSL test suceeded unexpectedly, got %s", body)
-	}
-	if !strings.Contains(body, "probe_http_ssl 0\n") {
-		t.Fatalf("Expected HTTP without SSL, got %s", body)
 	}
 }
 
@@ -151,8 +178,10 @@ func TestFailIfMatchesRegexpShouldFailOnMatch(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if result {
 		t.Fatalf("Regexp test succeeded unexpectedly, got %s", body)
@@ -166,8 +195,10 @@ func TestFailIfMatchesRegexpShouldNotFailOnNoMatch(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string NOT in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string NOT in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Regexp test failed unexpectedly, got %s", body)
@@ -183,8 +214,10 @@ func TestFailIfMatchesRegexpShouldFailOnAnyMatch(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string NOT in the body", "string in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string NOT in the body", "string in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if result {
 		t.Fatalf("Regexp test succeeded unexpectedly, got %s", body)
@@ -198,8 +231,10 @@ func TestFailIfMatchesRegexpShouldNotFailOnNoMatches(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string NOT in the body", "string also NOT in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfMatchesRegexp: []string{"string NOT in the body", "string also NOT in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Regexp test failed unexpectedly, got %s", body)
@@ -213,8 +248,10 @@ func TestFailIfNotMatchesRegexpShouldFailOnNoMatch(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string NOT in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string NOT in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if result {
 		t.Fatalf("Regexp test succeeded unexpectedly, got %s", body)
@@ -228,8 +265,10 @@ func TestFailIfNotMatchesRegexpShouldNotFailOnMatch(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Regexp test failed unexpectedly, got %s", body)
@@ -245,8 +284,10 @@ func TestFailIfNotMatchesRegexpShouldFailOnAnyNonMatches(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string in the body", "string NOT in the body"}}})
+		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string in the body", "string NOT in the body"}}}, metrics)
 	body := recorder.Body.String()
 	if result {
 		t.Fatalf("Regexp test succeeded unexpectedly, got %s", body)
@@ -260,8 +301,10 @@ func TestFailIfNotMatchesRegexpShouldNotFailOnAllMatches(t *testing.T) {
 	defer ts.Close()
 
 	recorder := httptest.NewRecorder()
+	metrics := NewMetricSink()
+	defer close(metrics)
 	result := probeHTTP(ts.URL, recorder,
-		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string in the", "body of the"}}})
+		Module{HTTP: HTTPProbe{FailIfNotMatchesRegexp: []string{"string in the", "body of the"}}}, metrics)
 	body := recorder.Body.String()
 	if !result {
 		t.Fatalf("Regexp test failed unexpectedly, got %s", body)
