@@ -13,15 +13,11 @@
 
 package main
 
-import (
-//"fmt"
-)
-
 func NewMetricSink() chan Metric {
 	metrics := make(chan Metric, 5)
 	go func() {
 		for range metrics {
-			// fmt.Printf("Discarding metric %s %f\n", m.Name, m.FloatValue)
+			// Do nothing.
 		}
 	}()
 	return metrics

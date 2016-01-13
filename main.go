@@ -131,13 +131,12 @@ func probeHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 		metrics <- Metric{"probe_success", 1}
 		successString = "true"
 	} else {
-		metrics <- Metric{"probe_success", 1}
+		metrics <- Metric{"probe_success", 0}
 		successString = "false"
 	}
 
 	// Close the metric buffer and dump it.
 	close(metrics)
-
 	for metric := range metrics {
 		fmt.Fprintf(w, "%s %f\n", metric.Name, metric.FloatValue)
 	}
